@@ -133,10 +133,17 @@ export function stageShot(name, world) {
     ], 1.4);
     return { screen: SCREEN_PLAY, best: 0 };
   }
-  // drive (the cover): down Sunset Blvd in a red sedan, traffic and pedestrians around.
-  state.missions.hide();
-  putInCar(world, 1600, 400, Math.PI / 2, 'sedan', '#d94f3d');
-  clearRoute(world, [{ x1: 1600, y1: 400, x2: 1600, y2: 2050 }]);
-  runWaypoints(world, [{ x: 1600, y: 1200 }, { x: 1600, y: 2050 }], 3.5);
+  // drive (the cover): Harbor Run in progress down Sunset Blvd — the mission card, its
+  // timer and a wanted star on the HUD, traffic and pedestrians around. The package is
+  // picked up at the warehouse first, so the timer is running and the pickup's heat shows.
+  state.missions.start(1);
+  const car = putInCar(world, 2500, 330, Math.PI, 'sedan', '#d94f3d');
+  // One step on the warehouse doorstep picks the package up and starts the timer.
+  world.step(SAMPLE, { mx: 0, my: 0, sprint: false, enter: false, punch: false, shoot: false, aimX: car.x, aimY: car.y });
+  clearRoute(world, [
+    { x1: 2500, y1: 350, x2: 1600, y2: 350 },
+    { x1: 1600, y1: 350, x2: 1600, y2: 1300 },
+  ]);
+  runWaypoints(world, [{ x: 2200, y: 350 }, { x: 1600, y: 350 }, { x: 1600, y: 1250 }], 5);
   return { screen: SCREEN_PLAY, best: 0 };
 }

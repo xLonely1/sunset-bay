@@ -31,8 +31,57 @@ const renderer = createRenderer(canvas, world.state.city);
 const audio = createAudio();
 const saved = readSave();
 
+// The live screen, shared with the playtest hooks below: runGame owns it in game mode,
+// runShot sets it to the staged scene's screen in shot mode.
+let screen = SCREEN_TITLE;
+
+// A handle for playtesting: the live state, one line of facts about it, and a way to jump
+// to a mission (used only by the automated playtest and the screenshot staging, never by
+// the game itself). Hoisted to module level so it also exists in ?shot= mode.
+window.__sunset = {
+  state: world.state,
+  startMission(i) {
+    world.state.missions.start(i);
+  },
+  debug() {
+    const p = world.state.player;
+    const obj = world.state.missions.objective(p.x, p.y);
+    let car = null;
+    let carD = Infinity;
+    for (const c of world.state.cars) {
+      const d = Math.hypot(c.x - p.x, c.y - p.y);
+      if (d < carD) { carD = d; car = c; }
+    }
+    let thug = null;
+    let thugD = Infinity;
+    for (const t of world.state.thugs) {
+      if (t.health <= 0) continue;
+      const d = Math.hypot(t.x - p.x, t.y - p.y);
+      if (d < thugD) { thugD = d; thug = t; }
+    }
+    return JSON.stringify({
+      screen, x: Math.round(p.x), y: Math.round(p.y), angle: Math.round(p.angle * 100) / 100,
+      health: Math.round(p.health), cash: p.cash, wanted: world.state.police.wanted,
+      mission: world.state.missions.mission, stage: world.state.missions.stage,
+      inCar: !!p.car, speed: p.car ? Math.round(p.car.speed) : 0,
+      cops: world.state.police.cops.length, copCars: world.state.police.copCars.length,
+      thugs: world.state.thugs.filter((t) => t.health > 0).length,
+      cars: world.state.cars.length, peds: world.state.peds.length,
+      weapon: p.weapon, timer: obj?.timer ?? null,
+      target: obj?.target ? { x: obj.target.x, y: obj.target.y } : null,
+      car: car ? { x: Math.round(car.x), y: Math.round(car.y), d: Math.round(carD) } : null,
+      aurora: (() => {
+        const a = world.state.aurora();
+        return a ? { x: Math.round(a.x), y: Math.round(a.y), d: Math.round(Math.hypot(a.x - p.x, a.y - p.y)) } : null;
+      })(),
+      thug: thug ? { d: Math.round(thugD), angle: Math.round(Math.atan2(thug.y - p.y, thug.x - p.x) * 100) / 100 } : null,
+    });
+  },
+};
+
 function runShot(name) {
   const scene = stageShot(name, world);
+  screen = scene.screen;
   let painted = 0;
   function paint() {
     renderer.draw(world.state, scene.screen, { best: 0, hasSave: false, toast: null, announce: null, hint: '' });
@@ -46,7 +95,6 @@ function runShot(name) {
 function runGame() {
   const input = createInput(canvas);
   const random = createRandom(seed ^ 0x9e3779b9);
-  let screen = SCREEN_TITLE;
   let overKind = 'wasted';
   let failReason = '';
   let best = saved?.best ?? 0;
@@ -59,49 +107,6 @@ function runGame() {
   let accumulator = 0;
   let last = performance.now();
   let attractT = random() * 100;
-
-  // A handle for playtesting: the live state, one line of facts about it, and a way to jump
-  // to a mission (used only by the automated playtest, never by the game itself).
-  window.__sunset = {
-    state: world.state,
-    startMission(i) {
-      world.state.missions.start(i);
-    },
-    debug() {
-      const p = world.state.player;
-      const obj = world.state.missions.objective(p.x, p.y);
-      let car = null;
-      let carD = Infinity;
-      for (const c of world.state.cars) {
-        const d = Math.hypot(c.x - p.x, c.y - p.y);
-        if (d < carD) { carD = d; car = c; }
-      }
-      let thug = null;
-      let thugD = Infinity;
-      for (const t of world.state.thugs) {
-        if (t.health <= 0) continue;
-        const d = Math.hypot(t.x - p.x, t.y - p.y);
-        if (d < thugD) { thugD = d; thug = t; }
-      }
-      return JSON.stringify({
-        screen, x: Math.round(p.x), y: Math.round(p.y), angle: Math.round(p.angle * 100) / 100,
-        health: Math.round(p.health), cash: p.cash, wanted: world.state.police.wanted,
-        mission: world.state.missions.mission, stage: world.state.missions.stage,
-        inCar: !!p.car, speed: p.car ? Math.round(p.car.speed) : 0,
-        cops: world.state.police.cops.length, copCars: world.state.police.copCars.length,
-        thugs: world.state.thugs.filter((t) => t.health > 0).length,
-        cars: world.state.cars.length, peds: world.state.peds.length,
-        weapon: p.weapon, timer: obj?.timer ?? null,
-        target: obj?.target ? { x: obj.target.x, y: obj.target.y } : null,
-        car: car ? { x: Math.round(car.x), y: Math.round(car.y), d: Math.round(carD) } : null,
-        aurora: (() => {
-          const a = world.state.aurora();
-          return a ? { x: Math.round(a.x), y: Math.round(a.y), d: Math.round(Math.hypot(a.x - p.x, a.y - p.y)) } : null;
-        })(),
-        thug: thug ? { d: Math.round(thugD), angle: Math.round(Math.atan2(thug.y - p.y, thug.x - p.x) * 100) / 100 } : null,
-      });
-    },
-  };
 
   function announceLine(message) {
     status.textContent = message;
